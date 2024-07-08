@@ -1,3 +1,4 @@
+# Release and changelog generation action
 name: Release
 
 on:
