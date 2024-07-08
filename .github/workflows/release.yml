@@ -1,26 +1,49 @@
-# Release and changelog generation action
-name: Release
+name: Release Workflow
 
 on:
   push:
     branches:
-      - main
-
-permissions:
-  contents: write 
+      - master
 
 jobs:
-  release:
-    name: Release
+  changelog:
+    name: Generate changelog
     runs-on: ubuntu-latest
-
+    outputs:
+      release_body: ${{ steps.git-cliff.outputs.content }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Release
-        uses: huggingface/semver-release-action@latest
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          release_type: ${{ github.event.inputs.release_type }}
+          fetch-depth: 0
+
+      - name: Generate a changelog
+        uses: orhun/git-cliff-action@v3
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: -vv --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Upload the binary releases
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file: binary_release.zip
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref }}
+          body: ${{ steps.git-cliff.outputs.content }}
+
+  upload:
+    name: Upload the release
+    needs: changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload the binary releases
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file: binary_release.zip
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref }}
+          body: ${{ needs.changelog.outputs.release_body }}
